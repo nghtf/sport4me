@@ -240,31 +240,38 @@ See [.env.example](.env.example) for a template.
 
 ## Local Development
 
-Available targets:
-
-- `make venv`
-- `make install`
-- `make test`
-- `make run`
-- `make check-proxy`
-- `make check-telegram`
-- `make docker-build`
-- `make docker-run`
-- `make docker-stop`
-- `make docker-logs`
-- `make compose-up`
-- `make compose-down`
-- `make compose-logs`
-- `make clean`
-- `make flush`
-
-Typical local setup:
+**Prerequisites:** Python 3.12+, `make`
 
 ```bash
-make install
-make test
-make run
+git clone https://github.com/nghtf/sport4me
+cd sport4me
+
+cp .env.example .env
+# Edit .env and set BOT_TOKEN
+
+make install   # create venv and install dependencies
+make test      # run the test suite
+make run       # start the bot locally
 ```
+
+Available targets:
+
+- `make venv`          — create local Python virtual environment or fallback deps dir
+- `make install`       — install dependencies
+- `make test`          — run pytest
+- `make run`           — run bot locally
+- `make check-proxy`   — check configured proxy and CONNECT support
+- `make check-telegram`— check Telegram API access with current env/proxy
+- `make docker-build`  — build Docker image
+- `make docker-run`    — run Docker container using `.env`
+- `make docker-stop`   — stop and remove Docker container
+- `make docker-logs`   — follow Docker container logs
+- `make compose-up`    — build and start with docker compose
+- `make compose-down`  — stop and remove docker compose services
+- `make compose-logs`  — follow docker compose logs
+- `make update`        — pull latest code from GitHub and restart container
+- `make clean`         — remove local caches
+- `make flush`         — delete the local SQLite database
 
 `make flush` deletes the local SQLite database (`data/activity_bot.db` by default). Override the path with `DB_PATH`:
 
@@ -340,14 +347,16 @@ make test
 
 ## Deployment
 
-The project includes Docker targets for deployment workflows.
+### VPS (docker compose — recommended)
 
-### Quick start with docker compose (recommended for VPS)
+**Prerequisites:** Docker with the Compose plugin, `git`, `make`
 
 ```bash
-# Copy and edit the env file
+git clone https://github.com/nghtf/sport4me
+cd sport4me
+
 cp .env.example .env
-# Set BOT_TOKEN and optionally HTTP_PROXY_URL in .env
+# Edit .env — set BOT_TOKEN (required) and HTTP_PROXY_URL (optional)
 
 make compose-up    # build image and start container in background
 make compose-logs  # follow logs
@@ -355,6 +364,12 @@ make compose-down  # stop
 ```
 
 The compose file mounts a named volume (`bot-data`) for the SQLite database so data survives container restarts and image rebuilds.
+
+To deploy an update:
+
+```bash
+make update   # git pull + docker compose up --build -d
+```
 
 ### Manual Docker
 
