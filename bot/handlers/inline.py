@@ -7,7 +7,7 @@ from aiogram.types import InlineQuery, InlineQueryResultArticle, InputTextMessag
 
 from bot.i18n import translate
 from bot.services import ActivityService
-from bot.ui import PERIOD_TO_FIELD, period_message, period_title, stats_message, user_language
+from bot.ui import PERIOD_TO_FIELD, cta_keyboard, period_message, period_title, stats_message, user_language
 
 logger = logging.getLogger(__name__)
 
@@ -36,19 +36,14 @@ async def handle_inline_query(inline_query: InlineQuery, service: ActivityServic
     telegram_user = inline_query.from_user
     logger.info("Handling inline query for user_id=%s query=%r", telegram_user.id, inline_query.query)
 
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     stats = service.get_period_stats(telegram_user.id, telegram_user.username)
     periods = _resolve_inline_periods(inline_query.query)
     bot_username = (await inline_query.bot.me()).username
 
     results = [
-        _build_stats_result(
-            period=period,
-            stats=stats,
-            lang=lang,
-            bot_username=bot_username,
-        )
+        _build_stats_result(period=period, stats=stats, lang=lang, bot_username=bot_username)
         for period in periods
     ]
 
@@ -60,7 +55,7 @@ def _resolve_inline_periods(query: str) -> tuple[str, ...]:
     return _INLINE_PERIOD_ALIASES.get(normalized, _INLINE_PERIOD_ALIASES[""])
 
 
-def _build_stats_result(period: str, stats, lang: str, bot_username: str | None) -> InlineQueryResultArticle:
+def _build_stats_result(period: str, stats, lang: str, bot_username: str | None = None) -> InlineQueryResultArticle:
     if period == "all":
         title = translate(lang, "inline.all_stats.title")
         description = translate(lang, "inline.all_stats.description")
@@ -79,4 +74,5 @@ def _build_stats_result(period: str, stats, lang: str, bot_username: str | None)
             message_text=text,
             parse_mode="HTML",
         ),
+        reply_markup=cta_keyboard(lang),
     )

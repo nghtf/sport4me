@@ -23,7 +23,7 @@ Users send a number such as `20`, `+20`, or `-20`, then choose an activity from 
 - User-facing bot messages support Russian and English.
 - Code, filenames, modules, functions, and variables should remain in English.
 - Keep comments rare and only add them when they explain non-obvious logic.
-- Keep the MVP simple. Do not add admin panels, dashboards, charts, goals, or analytics unless explicitly requested.
+- Keep v1.0 simple. Do not add admin panels, dashboards, charts, goals, or analytics unless explicitly requested.
 
 ## Preferred Stack
 
@@ -31,7 +31,7 @@ Unless the stack is intentionally changed, prefer:
 
 - Python
 - `aiogram`
-- SQLite for MVP storage
+- SQLite for v1.0 storage
 - `pytest` for tests
 - `.env` / environment variables for configuration
 - `make` for local workflows
@@ -83,7 +83,7 @@ This project is expected to be published as open source.
 - A daily activity total must never go above `1_000_000`
 - Data for different Telegram users must stay isolated
 - Stats are always calculated for the current user only
-- Server timezone is acceptable for MVP
+- Server timezone is acceptable for v1.0
 
 ## Expected Behavior
 
@@ -93,10 +93,14 @@ This project is expected to be published as open source.
 - `/day`, `/week`, and `/month` show a single period
 - `/en` and `/ru` persist the user language choice
 - `/clean` asks for confirmation and clears the user’s stats on confirm
-- inline queries return shareable stats snippets for the current user
+- inline queries return shareable stats snippets for the current user; each result includes a "Get your result" CTA button
 - After `+N` or `-N`, the bot stores a pending value and shows activity buttons plus cancel
 - After activity selection, the bot validates limits, stores the entry, and shows the current daily total
 - Cancel clears pending state without writing a record
+- In groups: `/top_day`, `/top_week`, `/top_month` show top-10 for the current period; `/top_last_day`, `/top_last_week`, `/top_last_month` show top-10 for the previous period
+- Calling any `/top_*` command auto-registers the user as a member of that group
+- Group leaderboards include a "Get your result" inline button so users can share their own stats immediately
+- Group members are stored in `group_members`; activity data is shared with the private-chat tracking (same `activity_entries` table)
 
 ## Recommended Structure
 
@@ -114,7 +118,7 @@ Do not reintroduce unnecessary abstraction layers unless they clearly improve ma
 
 ## Testing
 
-Minimum test coverage for the MVP:
+Minimum test coverage for v1.0:
 
 - valid `+N` and `-N` parsing
 - unsigned input treated as positive
@@ -125,6 +129,10 @@ Minimum test coverage for the MVP:
 - user data isolation
 - language preference persistence
 - stats cleanup behavior
+- group member auto-registration
+- group leaderboard ranking and score calculation
+- previous-period range helpers (last day, last week, last month)
+- group isolation across multiple chats
 
 Run available tests before finishing substantial changes. If existing tests do not cover changed business logic, add focused tests.
 

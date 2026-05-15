@@ -48,20 +48,6 @@ class PeriodStats:
     month: dict[str, int]
 
 
-@dataclass(frozen=True)
-class Tournament:
-    id: int
-    group_chat_id: int
-    telegram_chat_id: int
-    started_by_user_id: int
-    start_date: datetime
-    end_date: datetime  # exclusive upper bound: midnight after the last tournament day
-    finished_at: datetime | None  # set when /finish is called; None while still running
-    created_at: datetime
-
-    def is_active(self, now: datetime) -> bool:
-        return self.finished_at is None and now < self.end_date
-
 
 @dataclass(frozen=True)
 class LeaderboardEntry:

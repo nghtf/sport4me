@@ -6,8 +6,6 @@ MAX_AMOUNT = 1_000_000
 MIN_TOTAL = 0
 MAX_TOTAL = 1_000_000
 
-MAX_GROUP_MEMBERS = 10
-MAX_TOURNAMENT_DAYS = 365
 
 ACTIVITIES: dict[str, Activity] = {
     "steps": Activity("steps", "Шаги", "Steps", "Шаги", "Steps", "шт", "pcs", "шагов", "steps", "👟"),

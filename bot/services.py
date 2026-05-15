@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from bot.constants import ACTIVITIES, ACTIVITY_KEYS, MAX_GROUP_MEMBERS, MAX_TOURNAMENT_DAYS, MAX_TOTAL, MIN_TOTAL
-from bot.models import LeaderboardEntry, PeriodStats, Tournament, User
+from bot.constants import ACTIVITIES, ACTIVITY_KEYS, MAX_TOTAL, MIN_TOTAL
+from bot.models import LeaderboardEntry, PeriodStats, User
 from bot.repository import ActivityRepository
 
 
@@ -25,28 +25,6 @@ class ApplyResult:
     today_total: int
 
 
-class GroupFullError(RuntimeError):
-    pass
-
-
-class AlreadyJoinedError(RuntimeError):
-    pass
-
-
-class NoActiveTournamentError(RuntimeError):
-    pass
-
-
-class TournamentAlreadyActiveError(RuntimeError):
-    def __init__(self, tournament: Tournament) -> None:
-        self.tournament = tournament
-        super().__init__("A tournament is already active")
-
-
-class InvalidTournamentDaysError(ValueError):
-    pass
-
-
 class ActivityService:
     def __init__(self, repository: ActivityRepository):
         self.repository = repository
@@ -57,9 +35,13 @@ class ActivityService:
         telegram_user_id: int,
         username: str | None,
         first_name: str | None = None,
+        language_code: str | None = None,
         now: datetime | None = None,
     ) -> User:
-        return self.repository.get_or_create_user(telegram_user_id, username, first_name=first_name, now=now)
+        return self.repository.get_or_create_user(
+            telegram_user_id, username,
+            first_name=first_name, language_code=language_code, now=now,
+        )
 
     def set_pending_amount(self, telegram_user_id: int, amount: int) -> None:
         self._pending_amounts[telegram_user_id] = amount
@@ -137,85 +119,36 @@ class ActivityService:
             month=self.repository.get_totals_by_activity(user.id, month_start, month_end),
         )
 
-    def start_tournament(
+    def register_group_member(
         self,
         telegram_chat_id: int,
         chat_title: str | None,
         telegram_user_id: int,
         username: str | None,
-        days: int,
         first_name: str | None = None,
+        language_code: str | None = None,
         now: datetime | None = None,
-    ) -> Tournament:
-        if days < 1 or days > MAX_TOURNAMENT_DAYS:
-            raise InvalidTournamentDaysError(f"Days must be between 1 and {MAX_TOURNAMENT_DAYS}")
+    ) -> None:
         current_time = now or datetime.now()
-        active = self.repository.get_active_tournament(telegram_chat_id, current_time)
-        if active is not None:
-            raise TournamentAlreadyActiveError(active)
-        user = self.ensure_user(telegram_user_id, username, first_name=first_name, now=current_time)
+        user = self.ensure_user(
+            telegram_user_id, username,
+            first_name=first_name, language_code=language_code, now=current_time,
+        )
         group_chat_id = self.repository.get_or_create_group_chat_id(telegram_chat_id, chat_title, current_time)
-        start_date = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
-        end_date = start_date + timedelta(days=days)
-        tournament = self.repository.create_tournament(group_chat_id, user.id, start_date, end_date, current_time)
-        self.repository.add_tournament_participant(tournament.id, user.id, current_time)
-        return tournament
+        self.repository.add_group_member(group_chat_id, user.id, current_time)
 
-    def join_tournament(
+    def get_group_top(
         self,
         telegram_chat_id: int,
-        telegram_user_id: int,
-        username: str | None,
-        first_name: str | None = None,
+        chat_title: str | None,
+        start: datetime,
+        end: datetime,
         now: datetime | None = None,
-    ) -> int:
-        """Add user as a tournament participant. Returns total participant count."""
+        limit: int = 10,
+    ) -> list[LeaderboardEntry]:
         current_time = now or datetime.now()
-        tournament = self.repository.get_active_tournament(telegram_chat_id, current_time)
-        if tournament is None:
-            raise NoActiveTournamentError()
-        user = self.ensure_user(telegram_user_id, username, first_name=first_name, now=current_time)
-        if self.repository.is_tournament_participant(tournament.id, user.id):
-            raise AlreadyJoinedError()
-        count = self.repository.get_tournament_participant_count(tournament.id)
-        if count >= MAX_GROUP_MEMBERS:
-            raise GroupFullError()
-        self.repository.add_tournament_participant(tournament.id, user.id, current_time)
-        return count + 1
-
-    def finish_tournament(
-        self,
-        telegram_chat_id: int,
-        now: datetime | None = None,
-    ) -> tuple[Tournament, list[LeaderboardEntry]]:
-        current_time = now or datetime.now()
-        tournament = self.repository.get_active_tournament(telegram_chat_id, current_time)
-        if tournament is None:
-            raise NoActiveTournamentError()
-        finished = self.repository.finish_tournament(tournament.id, current_time)
-        entries = self.repository.get_tournament_leaderboard(
-            finished.id, finished.start_date, finished.end_date
-        )
-        return finished, entries
-
-    def get_tournament_results(
-        self,
-        telegram_chat_id: int,
-        now: datetime | None = None,
-    ) -> tuple[Tournament | None, list[LeaderboardEntry]]:
-        current_time = now or datetime.now()
-        # Prefer the active tournament so /results and /finish always agree;
-        # fall back to the most recent past tournament when nothing is running.
-        tournament = (
-            self.repository.get_active_tournament(telegram_chat_id, current_time)
-            or self.repository.get_latest_tournament(telegram_chat_id)
-        )
-        if tournament is None:
-            return None, []
-        entries = self.repository.get_tournament_leaderboard(
-            tournament.id, tournament.start_date, tournament.end_date
-        )
-        return tournament, entries
+        group_chat_id = self.repository.get_or_create_group_chat_id(telegram_chat_id, chat_title, current_time)
+        return self.repository.get_group_leaderboard(group_chat_id, start, end, limit=limit)
 
 
 def validate_daily_total(current_total: int, amount: int) -> int:
@@ -243,3 +176,22 @@ def month_range(now: datetime) -> tuple[datetime, datetime]:
     else:
         end = start.replace(month=start.month + 1)
     return start, end
+
+
+def last_day_range(now: datetime) -> tuple[datetime, datetime]:
+    today_start, _ = today_range(now)
+    return today_start - timedelta(days=1), today_start
+
+
+def last_week_range(now: datetime) -> tuple[datetime, datetime]:
+    current_week_start, _ = week_range(now)
+    return current_week_start - timedelta(days=7), current_week_start
+
+
+def last_month_range(now: datetime) -> tuple[datetime, datetime]:
+    current_month_start, _ = month_range(now)
+    if current_month_start.month == 1:
+        prev = current_month_start.replace(year=current_month_start.year - 1, month=12)
+    else:
+        prev = current_month_start.replace(month=current_month_start.month - 1)
+    return prev, current_month_start

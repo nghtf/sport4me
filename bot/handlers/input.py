@@ -20,7 +20,7 @@ async def handle_text(message: Message, service: ActivityService) -> None:
     telegram_user = message.from_user
     if telegram_user is None:
         return
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
 
     try:

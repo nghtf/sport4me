@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from bot.constants import ACTIVITY_KEYS
-from bot.models import LeaderboardEntry, Tournament, User
+from bot.models import LeaderboardEntry, User
 from bot.scoring import calculate_score
 
 
@@ -51,29 +51,21 @@ class ActivityRepository:
                     created_at TEXT NOT NULL
                 );
 
-                CREATE TABLE IF NOT EXISTS tournaments (
+                CREATE TABLE IF NOT EXISTS group_members (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     group_chat_id INTEGER NOT NULL,
-                    started_by_user_id INTEGER NOT NULL,
-                    start_date TEXT NOT NULL,
-                    end_date TEXT NOT NULL,
-                    finished_at TEXT,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY (group_chat_id) REFERENCES group_chats(id),
-                    FOREIGN KEY (started_by_user_id) REFERENCES users(id)
-                );
-
-                CREATE TABLE IF NOT EXISTS tournament_participants (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    tournament_id INTEGER NOT NULL,
                     user_id INTEGER NOT NULL,
                     joined_at TEXT NOT NULL,
-                    FOREIGN KEY (tournament_id) REFERENCES tournaments(id),
+                    FOREIGN KEY (group_chat_id) REFERENCES group_chats(id),
                     FOREIGN KEY (user_id) REFERENCES users(id),
-                    UNIQUE(tournament_id, user_id)
+                    UNIQUE(group_chat_id, user_id)
                 );
+
+                CREATE INDEX IF NOT EXISTS idx_group_members_group_chat_id
+                ON group_members(group_chat_id);
                 """
             )
+
             # Column migrations for existing databases
             user_columns = {
                 str(r["name"])
@@ -84,12 +76,28 @@ class ActivityRepository:
             if "first_name" not in user_columns:
                 conn.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
 
-            tournament_columns = {
+            # Migrate tournament data → group_members, then drop tournament tables
+            existing_tables = {
                 str(r["name"])
-                for r in conn.execute("PRAGMA table_info(tournaments)").fetchall()
+                for r in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                ).fetchall()
             }
-            if "finished_at" not in tournament_columns:
-                conn.execute("ALTER TABLE tournaments ADD COLUMN finished_at TEXT")
+            if "tournament_participants" in existing_tables:
+                # Only migrate when tournaments table is still present; otherwise
+                # just drop the orphaned participants table.
+                if "tournaments" in existing_tables:
+                    conn.execute(
+                        """
+                        INSERT OR IGNORE INTO group_members (group_chat_id, user_id, joined_at)
+                        SELECT t.group_chat_id, tp.user_id, tp.joined_at
+                        FROM tournament_participants tp
+                        JOIN tournaments t ON t.id = tp.tournament_id
+                        """
+                    )
+                conn.execute("DROP TABLE IF EXISTS tournament_participants")
+            if "tournaments" in existing_tables:
+                conn.execute("DROP TABLE IF EXISTS tournaments")
 
     # ------------------------------------------------------------------ users
 
@@ -98,27 +106,36 @@ class ActivityRepository:
         telegram_user_id: int,
         username: str | None,
         first_name: str | None = None,
+        language_code: str | None = None,
         now: datetime | None = None,
     ) -> User:
         current_time = now or datetime.now()
+        resolved_lang = _resolve_language_code(language_code)
         with self._connect() as conn:
             row = _get_user_row_by_telegram_id(conn, telegram_user_id)
 
             if row is None:
                 cursor = conn.execute(
                     """
-                    INSERT INTO users (telegram_user_id, username, first_name, created_at)
-                    VALUES (?, ?, ?, ?)
+                    INSERT INTO users (telegram_user_id, username, first_name, preferred_language, created_at)
+                    VALUES (?, ?, ?, ?, ?)
                     """,
-                    (telegram_user_id, username, first_name, _to_db_datetime(current_time)),
+                    (telegram_user_id, username, first_name, resolved_lang, _to_db_datetime(current_time)),
                 )
                 user_id = int(cursor.lastrowid)
             else:
                 user_id = int(row["id"])
-                if username != row["username"] or first_name != row["first_name"]:
+                name_changed = username != row["username"] or first_name != row["first_name"]
+                lang_fillable = row["preferred_language"] is None and resolved_lang is not None
+                if name_changed or lang_fillable:
                     conn.execute(
-                        "UPDATE users SET username = ?, first_name = ? WHERE id = ?",
-                        (username, first_name, user_id),
+                        """
+                        UPDATE users
+                        SET username = ?, first_name = ?,
+                            preferred_language = COALESCE(preferred_language, ?)
+                        WHERE id = ?
+                        """,
+                        (username, first_name, resolved_lang, user_id),
                     )
 
             row = _get_user_row_by_id(conn, user_id)
@@ -235,134 +252,27 @@ class ActivityRepository:
                 )
             return group_chat_id
 
-    # ------------------------------------------------------------ tournaments
+    # ----------------------------------------------------------- group members
 
-    def create_tournament(
+    def add_group_member(
         self,
         group_chat_id: int,
-        started_by_user_id: int,
-        start_date: datetime,
-        end_date: datetime,
-        now: datetime | None = None,
-    ) -> Tournament:
-        current_time = now or datetime.now()
-        with self._connect() as conn:
-            cursor = conn.execute(
-                """
-                INSERT INTO tournaments (group_chat_id, started_by_user_id, start_date, end_date, created_at)
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                (
-                    group_chat_id,
-                    started_by_user_id,
-                    _to_db_datetime(start_date),
-                    _to_db_datetime(end_date),
-                    _to_db_datetime(current_time),
-                ),
-            )
-            tournament_id = int(cursor.lastrowid)
-            row = conn.execute(
-                """
-                SELECT t.*, gc.telegram_chat_id
-                FROM tournaments t
-                JOIN group_chats gc ON gc.id = t.group_chat_id
-                WHERE t.id = ?
-                """,
-                (tournament_id,),
-            ).fetchone()
-            return _tournament_from_row(row)
-
-    def get_active_tournament(
-        self,
-        telegram_chat_id: int,
-        now: datetime | None = None,
-    ) -> Tournament | None:
-        current_time = now or datetime.now()
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT t.*, gc.telegram_chat_id
-                FROM tournaments t
-                JOIN group_chats gc ON gc.id = t.group_chat_id
-                WHERE gc.telegram_chat_id = ?
-                  AND t.end_date > ?
-                  AND t.finished_at IS NULL
-                ORDER BY t.created_at DESC
-                LIMIT 1
-                """,
-                (telegram_chat_id, _to_db_datetime(current_time)),
-            ).fetchone()
-            return _tournament_from_row(row) if row else None
-
-    def get_latest_tournament(self, telegram_chat_id: int) -> Tournament | None:
-        with self._connect() as conn:
-            row = conn.execute(
-                """
-                SELECT t.*, gc.telegram_chat_id
-                FROM tournaments t
-                JOIN group_chats gc ON gc.id = t.group_chat_id
-                WHERE gc.telegram_chat_id = ?
-                ORDER BY t.created_at DESC
-                LIMIT 1
-                """,
-                (telegram_chat_id,),
-            ).fetchone()
-            return _tournament_from_row(row) if row else None
-
-    def finish_tournament(self, tournament_id: int, now: datetime | None = None) -> Tournament:
-        current_time = now or datetime.now()
-        with self._connect() as conn:
-            conn.execute(
-                "UPDATE tournaments SET finished_at = ? WHERE id = ?",
-                (_to_db_datetime(current_time), tournament_id),
-            )
-            row = conn.execute(
-                """
-                SELECT t.*, gc.telegram_chat_id
-                FROM tournaments t
-                JOIN group_chats gc ON gc.id = t.group_chat_id
-                WHERE t.id = ?
-                """,
-                (tournament_id,),
-            ).fetchone()
-            return _tournament_from_row(row)
-
-    # ------------------------------------------------- tournament participants
-
-    def add_tournament_participant(
-        self,
-        tournament_id: int,
         user_id: int,
         now: datetime | None = None,
     ) -> None:
         current_time = now or datetime.now()
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO tournament_participants (tournament_id, user_id, joined_at) VALUES (?, ?, ?)",
-                (tournament_id, user_id, _to_db_datetime(current_time)),
+                "INSERT OR IGNORE INTO group_members (group_chat_id, user_id, joined_at) VALUES (?, ?, ?)",
+                (group_chat_id, user_id, _to_db_datetime(current_time)),
             )
 
-    def get_tournament_participant_count(self, tournament_id: int) -> int:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) AS cnt FROM tournament_participants WHERE tournament_id = ?",
-                (tournament_id,),
-            ).fetchone()
-            return int(row["cnt"])
-
-    def is_tournament_participant(self, tournament_id: int, user_id: int) -> bool:
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT id FROM tournament_participants WHERE tournament_id = ? AND user_id = ?",
-                (tournament_id, user_id),
-            ).fetchone()
-            return row is not None
-
-    def get_tournament_leaderboard(
+    def get_group_leaderboard(
         self,
-        tournament_id: int,
-        start_date: datetime,
-        end_date: datetime,
+        group_chat_id: int,
+        start: datetime,
+        end: datetime,
+        limit: int = 10,
     ) -> list[LeaderboardEntry]:
         with self._connect() as conn:
             rows = conn.execute(
@@ -370,17 +280,18 @@ class ActivityRepository:
                 SELECT u.id, u.telegram_user_id, u.username, u.first_name, u.preferred_language, u.created_at,
                        ae.activity_type,
                        COALESCE(SUM(ae.amount), 0) AS total
-                FROM tournament_participants tp
-                JOIN users u ON u.id = tp.user_id
+                FROM group_members gm
+                JOIN users u ON u.id = gm.user_id
                 LEFT JOIN activity_entries ae
                     ON ae.user_id = u.id
                     AND ae.created_at >= ?
                     AND ae.created_at < ?
-                WHERE tp.tournament_id = ?
+                WHERE gm.group_chat_id = ?
                 GROUP BY u.id, ae.activity_type
                 """,
-                (_to_db_datetime(start_date), _to_db_datetime(end_date), tournament_id),
+                (_to_db_datetime(start), _to_db_datetime(end), group_chat_id),
             ).fetchall()
+
         grouped: dict[int, dict[str, object]] = {}
         for row in rows:
             user_id = int(row["id"])
@@ -407,7 +318,7 @@ class ActivityRepository:
         )
         return [
             LeaderboardEntry(rank=rank, user=user, score=score)
-            for rank, (user, score) in enumerate(ranked, start=1)
+            for rank, (user, score) in enumerate(ranked[:limit], start=1)
         ]
 
     def _connect(self) -> sqlite3.Connection:
@@ -433,21 +344,14 @@ def _get_user_row_by_telegram_id(conn: sqlite3.Connection, telegram_user_id: int
     ).fetchone()
 
 
+def _resolve_language_code(language_code: str | None) -> str | None:
+    if language_code is None:
+        return None
+    return "ru" if language_code.startswith("ru") else "en"
+
+
 def _to_db_datetime(value: datetime) -> str:
     return value.replace(microsecond=0).isoformat()
-
-
-def _tournament_from_row(row: Any) -> Tournament:
-    return Tournament(
-        id=int(row["id"]),
-        group_chat_id=int(row["group_chat_id"]),
-        telegram_chat_id=int(row["telegram_chat_id"]),
-        started_by_user_id=int(row["started_by_user_id"]),
-        start_date=datetime.fromisoformat(row["start_date"]),
-        end_date=datetime.fromisoformat(row["end_date"]),
-        finished_at=datetime.fromisoformat(row["finished_at"]) if row["finished_at"] else None,
-        created_at=datetime.fromisoformat(row["created_at"]),
-    )
 
 
 def _user_from_row(row: Any) -> User:

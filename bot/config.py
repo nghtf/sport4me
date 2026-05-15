@@ -33,7 +33,7 @@ def load_settings() -> Settings:
 def sqlite_path_from_url(database_url: str) -> str:
     prefix = "sqlite:///"
     if not database_url.startswith(prefix):
-        raise ValueError("Only sqlite:/// DATABASE_URL is supported in MVP")
+        raise ValueError("Only sqlite:/// DATABASE_URL is supported in v1.0")
     return database_url[len(prefix) :]
 
 

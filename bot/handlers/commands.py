@@ -11,6 +11,7 @@ from bot.ui import (
     cannot_identify_user_message,
     clean_confirm_message,
     clean_confirm_keyboard,
+    cta_keyboard,
     help_text,
     language_switched_to_english_message,
     language_switched_to_russian_message,
@@ -32,7 +33,7 @@ async def start(message: Message, service: ActivityService) -> None:
     logger.info("Handling /start for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
     stored_user = None
     if telegram_user is not None:
-        stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+        stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     await message.answer(start_text(lang))
 
@@ -43,7 +44,7 @@ async def help_command(message: Message, service: ActivityService) -> None:
     logger.info("Handling /help for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
     stored_user = None
     if telegram_user is not None:
-        stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+        stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     await message.answer(help_text(lang))
 
@@ -56,10 +57,11 @@ async def stat(message: Message, service: ActivityService) -> None:
         await message.answer(cannot_identify_user_message("en"))
         return
 
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     stats = service.get_period_stats(telegram_user.id, telegram_user.username)
-    await message.answer(stats_message(stats, lang, bot_username=(await message.bot.me()).username))
+    bot_username = (await message.bot.me()).username
+    await message.answer(stats_message(stats, lang, bot_username=bot_username), reply_markup=cta_keyboard(lang))
 
 
 @router.message(Command("en"))
@@ -91,7 +93,7 @@ async def clean(message: Message, service: ActivityService) -> None:
     if telegram_user is None:
         await message.answer(cannot_identify_user_message("en"))
         return
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     await message.answer(clean_confirm_message(lang), reply_markup=clean_confirm_keyboard(lang))
 
@@ -118,9 +120,10 @@ async def _send_single_period_stats(message: Message, service: ActivityService, 
         await message.answer(cannot_identify_user_message("en"))
         return
 
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     stats = service.get_period_stats(telegram_user.id, telegram_user.username)
     stats_field = PERIOD_TO_FIELD[period]
     totals = getattr(stats, stats_field)
-    await message.answer(period_message(period, totals, lang, bot_username=(await message.bot.me()).username))
+    bot_username = (await message.bot.me()).username
+    await message.answer(period_message(period, totals, lang, bot_username=bot_username), reply_markup=cta_keyboard(lang))

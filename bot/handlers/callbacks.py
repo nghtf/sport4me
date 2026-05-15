@@ -6,6 +6,7 @@ from aiogram.types import CallbackQuery
 
 from bot.constants import ACTIVITIES
 from bot.services import ActivityService, LimitError, PendingNotFoundError
+from bot.i18n import translate
 from bot.ui import (
     apply_success_message,
     cancel_message,
@@ -44,7 +45,7 @@ async def _delete_prompt_message_safely(callback: CallbackQuery) -> None:
 @router.callback_query(F.data == "cancel")
 async def cancel(callback: CallbackQuery, service: ActivityService) -> None:
     telegram_user = callback.from_user
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     amount = service.clear_pending_amount(telegram_user.id)
     await callback.message.answer(cancel_message(amount, lang))
@@ -55,7 +56,7 @@ async def cancel(callback: CallbackQuery, service: ActivityService) -> None:
 @router.callback_query(F.data == "clean:cancel")
 async def cancel_clean(callback: CallbackQuery, service: ActivityService) -> None:
     telegram_user = callback.from_user
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     await callback.message.answer(clean_cancelled_message(lang))
     await _delete_prompt_message_safely(callback)
@@ -65,7 +66,7 @@ async def cancel_clean(callback: CallbackQuery, service: ActivityService) -> Non
 @router.callback_query(F.data == "clean:confirm")
 async def confirm_clean(callback: CallbackQuery, service: ActivityService) -> None:
     telegram_user = callback.from_user
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     service.clear_all_stats(telegram_user.id, telegram_user.username)
     await callback.message.answer(clean_success_message(lang))
@@ -73,10 +74,20 @@ async def confirm_clean(callback: CallbackQuery, service: ActivityService) -> No
     await _answer_callback_safely(callback)
 
 
+@router.callback_query(F.data.startswith("join_group:"))
+async def join_group(callback: CallbackQuery, service: ActivityService) -> None:
+    telegram_user = callback.from_user
+    chat_id = int(str(callback.data).split(":", 1)[1])
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
+    lang = user_language(stored_user, telegram_user)
+    service.register_group_member(chat_id, None, telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    await callback.answer(translate(lang, "message.join_group.success"), show_alert=False)
+
+
 @router.callback_query(F.data.startswith("activity:"))
 async def apply_activity(callback: CallbackQuery, service: ActivityService) -> None:
     telegram_user = callback.from_user
-    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
+    stored_user = service.ensure_user(telegram_user.id, telegram_user.username, first_name=telegram_user.first_name, language_code=telegram_user.language_code)
     lang = user_language(stored_user, telegram_user)
     activity_key = str(callback.data).split(":", 1)[1]
     if activity_key not in ACTIVITIES:

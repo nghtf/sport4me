@@ -19,7 +19,7 @@ Users send a signed or unsigned integer such as `20`, `+20`, or `-20`, then choo
 - Persistent language switching with `/en` and `/ru`
 - Safe full cleanup flow with `/clean`
 - Inline query support for sharing personal stats
-- Group tournaments with leaderboard
+- Group leaderboards: top-10 rankings per period among group members
 
 ## Private chat commands
 
@@ -33,25 +33,26 @@ Users send a signed or unsigned integer such as `20`, `+20`, or `-20`, then choo
 - `/ru` - switch language to Russian
 - `/clean` - clear all stats after confirmation
 
-## Group tournament commands
+## Group commands
 
-Add the bot to a group and assign it as admin, then use these commands:
+Add the bot to a group. Any user who issues a group command is automatically registered as a group member and included in future leaderboards.
 
 | Command | Description |
 |---|---|
-| `/run <days>` | Start a tournament lasting `<days>` days. The sender is automatically added as participant #1. Only one tournament can run at a time. |
-| `/join` | Join the active tournament as a participant. Up to 10 participants per tournament. |
-| `/results` | Show the current leaderboard (or final results of the last tournament). |
-| `/finish` | End the active tournament immediately and show the final leaderboard. |
+| `/top_day` | Top 10 for today |
+| `/top_week` | Top 10 for the current week (Mon–Sun) |
+| `/top_month` | Top 10 for the current calendar month |
+| `/top_last_day` | Top 10 for yesterday |
+| `/top_last_week` | Top 10 for the previous week |
+| `/top_last_month` | Top 10 for the previous calendar month |
 
-### Tournament rules
+### How group rankings work
 
-- A tournament is started with `/run <days>` (e.g. `/run 7` for a 7-day tournament).
-- Participants join explicitly with `/join`. New users cannot join after `/run` returns an error if there is already an active tournament.
-- Score is a **normalized activity rating** so different activity types can be compared fairly.
-- The leaderboard ranks participants by normalized score, highest first.
-- A tournament ends either when its duration expires or when `/finish` is called.
-- After a tournament ends, a new one can be started with `/run`.
+- A user is added to the group's member list the first time they issue any `/top_*` command.
+- Rankings are based on normalized activity score across all tracked activity types.
+- Only group members are ranked; activity logged before joining does count once the user is a member.
+- The leaderboard shows at most 10 entries, ordered by score descending.
+- Each leaderboard message includes a **"Get your result"** button that opens the inline stat menu, letting any user instantly share their own stats in the chat.
 
 ### Score model
 
@@ -66,34 +67,21 @@ Period headers show this score directly, for example `Today (🏅100)`.
 ### Example flow
 
 ```text
-# Alice starts a 7-day tournament
-Alice: /run 7
-Bot:   Tournament started!
-       Period: May 14, 2026 — May 20, 2026 (7 days)
-
-# Bob and Carol join
-Bob:   /join
-Bot:   You're in! Participant #2.
-Carol: /join
-Bot:   You're in! Participant #3.
-
-# Anyone can check standings at any time
-Dave:  /results
-Bot:   Tournament: May 14 — May 20, 2026
-       Status: Active
+# Alice checks today's group ranking
+Alice: /top_day
+Bot:   Top 10 · Today
        -----
-       🥇 @alice: 1 200
-       🥈 @bob: 800
-       🥉 Carol: 350
+       🥇 @alice: 120
+       🥈 @bob: 80
 
-# Alice ends the tournament early
-Alice: /finish
-Bot:   Tournament finished!
-       Period: May 14 — May 20, 2026
+# Bob checks last week's ranking
+Bob:   /top_last_week
+Bot:   Top 10 · Last Week
        -----
-       🥇 @alice: 1 200
-       🥈 @bob: 800
-       🥉 Carol: 350
+       🥇 @carol: 350
+       🥈 @alice: 280
+       🥉 @bob: 100
+       [Get your result]
 ```
 
 ## Inline Queries
@@ -124,7 +112,7 @@ With an empty inline query, the bot returns four choices:
 - week
 - month
 
-Inline results are personal and generated from the current user’s own data.
+Inline results are personal and generated from the current user's own data. Each result includes a **"Get your result"** button so recipients can look up their own stats immediately.
 
 ## Input Rules
 
@@ -207,13 +195,12 @@ After the activity is chosen, the bot stores the entry and returns the updated d
 
 ## Storage
 
-The MVP uses SQLite.
+Version 1.0 uses SQLite.
 
 - `users` — one row per Telegram user
 - `activity_entries` — individual log entries per user
 - `group_chats` — groups where the bot has been used
-- `tournaments` — one row per tournament; `finished_at` is set when `/finish` is called or when a new tournament is queried after the previous one has expired
-- `tournament_participants` — users who joined a specific tournament via `/join` or `/run`
+- `group_members` — users registered in each group (auto-added on first `/top_*` command)
 - persistent user language preference
 - per-user stats queries for day, week, and month
 
@@ -336,8 +323,9 @@ The test suite covers:
 - user isolation
 - language preference persistence
 - full cleanup behavior
-- tournament lifecycle: start, join, finish, expiry
-- leaderboard scoring and participant isolation
+- group member registration and leaderboard ranking
+- period range helpers (current and previous periods)
+- group isolation across multiple chats
 
 Run:
 

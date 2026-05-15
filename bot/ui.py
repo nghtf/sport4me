@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.types import User as TelegramUser
 
-from bot.constants import ACTIVITIES, ACTIVITY_KEYS, MAX_AMOUNT, MAX_GROUP_MEMBERS, MAX_TOTAL, MAX_TOURNAMENT_DAYS, MIN_TOTAL
+from bot.constants import ACTIVITIES, ACTIVITY_KEYS, MAX_AMOUNT, MAX_TOTAL, MIN_TOTAL
 from bot.i18n import Language, translate
-from bot.models import LeaderboardEntry, PeriodStats, Tournament, User
+from bot.models import LeaderboardEntry, PeriodStats, User
 from bot.scoring import calculate_score
 from bot.services import ApplyResult, LimitError
 from bot.validators import InputErrorCode
@@ -56,6 +54,32 @@ def clean_confirm_keyboard(lang: Language) -> InlineKeyboardMarkup:
                     text=translate(lang, "button.cancel"),
                     callback_data="clean:cancel",
                 ),
+            ]
+        ]
+    )
+
+
+def cta_keyboard(lang: Language) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=translate(lang, "button.get_result"),
+                    switch_inline_query_current_chat="",
+                )
+            ]
+        ]
+    )
+
+
+def participate_keyboard(lang: Language, chat_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=translate(lang, "button.participate"),
+                    callback_data=f"join_group:{chat_id}",
+                )
             ]
         ]
     )
@@ -121,12 +145,12 @@ def input_error_message(code: InputErrorCode, lang: Language) -> str:
 def stats_message(stats: PeriodStats, lang: Language, bot_username: str | None = None) -> str:
     body = "\n\n".join(
         [
-            period_message("day", stats.today, lang, bot_username=bot_username, include_cta=False),
-            period_message("week", stats.week, lang, bot_username=bot_username, include_cta=False),
-            period_message("month", stats.month, lang, bot_username=bot_username, include_cta=False),
+            period_message("day", stats.today, lang),
+            period_message("week", stats.week, lang),
+            period_message("month", stats.month, lang),
         ]
     )
-    return _append_cta(body, lang, "cta.stats", bot_username)
+    return _append_cta(body, lang, bot_username)
 
 
 def period_message(
@@ -134,17 +158,13 @@ def period_message(
     totals: dict[str, int],
     lang: Language,
     bot_username: str | None = None,
-    include_cta: bool = True,
 ) -> str:
     title = period_title(period, lang)
     score = calculate_score(totals)
     lines = [f"<b>{title} (🏅{format_number(score)})</b>", "-----"]
     for activity_key in ACTIVITY_KEYS:
         lines.append(stat_line(activity_key, totals.get(activity_key, 0), lang))
-    message = "\n".join(lines)
-    if not include_cta:
-        return message
-    return _append_cta(message, lang, "cta.stats", bot_username)
+    return _append_cta("\n".join(lines), lang, bot_username)
 
 
 def stat_line(activity_key: str, value: int, lang: Language) -> str:
@@ -158,6 +178,24 @@ def stat_line(activity_key: str, value: int, lang: Language) -> str:
 def format_activity_amount(activity_key: str, amount: int, lang: Language) -> str:
     activity = ACTIVITIES[activity_key]
     return f"{format_number(abs(amount))} {activity.amount_label(lang)}"
+
+
+def group_leaderboard_message(
+    period: str,
+    entries: list[LeaderboardEntry],
+    lang: Language,
+    bot_username: str | None = None,
+) -> str:
+    header = translate(lang, f"group.top.{period}")
+    if not entries:
+        body = f"<b>{header}</b>\n\n{translate(lang, 'group.top.no_data')}"
+        return _append_cta(body, lang, bot_username)
+    _MEDALS = ["🥇", "🥈", "🥉"]
+    lines = [f"<b>{header}</b>", "-----"]
+    for entry in entries:
+        medal = _MEDALS[entry.rank - 1] if entry.rank <= 3 else f"{entry.rank}."
+        lines.append(f"{medal} {_display_name(entry.user, lang)}: {format_number(entry.score)}")
+    return _append_cta("\n".join(lines), lang, bot_username)
 
 
 def cannot_identify_user_message(lang: Language) -> str:
@@ -199,115 +237,20 @@ def _activity_button(activity_key: str, lang: Language) -> InlineKeyboardButton:
     )
 
 
-def tournament_started_message(tournament: Tournament, lang: Language) -> str:
-    start = tournament.start_date.strftime("%b %d, %Y")
-    last_day = (tournament.end_date - timedelta(days=1)).strftime("%b %d, %Y")
-    days = (tournament.end_date - tournament.start_date).days
-    return translate(lang, "message.tournament.started", start=start, last_day=last_day, days=days)
-
-
-def tournament_already_active_message(tournament: Tournament, lang: Language) -> str:
-    start = tournament.start_date.strftime("%b %d, %Y")
-    last_day = (tournament.end_date - timedelta(days=1)).strftime("%b %d, %Y")
-    return translate(lang, "message.tournament.already_active", start=start, last_day=last_day)
-
-
-def tournament_results_message(
-    tournament: Tournament | None,
-    entries: list[LeaderboardEntry],
-    lang: Language,
-    bot_username: str | None = None,
-    now: datetime | None = None,
-) -> str:
-    if tournament is None:
-        return translate(lang, "message.tournament.results.none")
-
-    current_time = now or datetime.now()
-    is_active = tournament.is_active(current_time)
-    start = tournament.start_date.strftime("%b %d")
-    last_day = (tournament.end_date - timedelta(days=1)).strftime("%b %d, %Y")
-    status = translate(lang, "term.tournament.status.active" if is_active else "term.tournament.status.ended")
-    header = translate(lang, "message.tournament.results.header", start=start, last_day=last_day, status=status)
-
-    if not entries:
-        return _append_cta(
-            f"{header}\n\n{translate(lang, 'message.tournament.results.no_participants')}",
-            lang,
-            "cta.tournament",
-            bot_username,
-        )
-
-    _MEDALS = ["🥇", "🥈", "🥉"]
-    lines = [header, "-----"]
-    for entry in entries:
-        medal = _MEDALS[entry.rank - 1] if entry.rank <= 3 else f"{entry.rank}."
-        name = (
-            f"@{entry.user.username}"
-            if entry.user.username
-            else (entry.user.first_name or f"#{entry.user.telegram_user_id}")
-        )
-        lines.append(f"{medal} {name}: {format_number(entry.score)}")
-    return _append_cta("\n".join(lines), lang, "cta.tournament", bot_username)
-
-
-def tournament_join_success_message(participant_count: int, lang: Language) -> str:
-    return translate(lang, "message.tournament.join_success", participant_count=participant_count)
-
-
-def already_joined_message(lang: Language) -> str:
-    return translate(lang, "message.already_joined")
-
-
-def no_active_tournament_message(lang: Language) -> str:
-    return translate(lang, "message.no_active_tournament")
-
-
-def tournament_finished_message(
-    tournament: Tournament,
-    entries: list[LeaderboardEntry],
-    lang: Language,
-    bot_username: str | None = None,
-) -> str:
-    start = tournament.start_date.strftime("%b %d")
-    end = (tournament.end_date - timedelta(days=1)).strftime("%b %d, %Y")
-    header = translate(lang, "message.tournament.finished.header", start=start, end=end)
-    if not entries:
-        return _append_cta(
-            f"{header}\n\n{translate(lang, 'message.tournament.finished.no_participants')}",
-            lang,
-            "cta.tournament",
-            bot_username,
-        )
-    _MEDALS = ["🥇", "🥈", "🥉"]
-    lines = [header, "-----"]
-    for entry in entries:
-        medal = _MEDALS[entry.rank - 1] if entry.rank <= 3 else f"{entry.rank}."
-        name = (
-            f"@{entry.user.username}"
-            if entry.user.username
-            else (entry.user.first_name or f"#{entry.user.telegram_user_id}")
-        )
-        lines.append(f"{medal} {name}: {format_number(entry.score)}")
-    return _append_cta("\n".join(lines), lang, "cta.tournament", bot_username)
-
-
-def group_full_message(lang: Language) -> str:
-    return translate(lang, "message.group_full", max_group_members=MAX_GROUP_MEMBERS)
-
-
-def invalid_tournament_days_message(lang: Language) -> str:
-    return translate(lang, "message.invalid_tournament_days", max_tournament_days=MAX_TOURNAMENT_DAYS)
-
-
 def period_title(period: str, lang: Language) -> str:
     return translate(lang, f"period.{period}")
 
 
-def _append_cta(message: str, lang: Language, label_key: str, bot_username: str | None) -> str:
+def _display_name(user: User, lang: Language) -> str:
+    if user.username:
+        return f"@{user.username}"
+    if user.first_name:
+        return user.first_name
+    return translate(lang, "user.anonymous")
+
+
+def _append_cta(message: str, lang: Language, bot_username: str | None) -> str:
     if not bot_username:
         return message
-    return f'{message}\n\n<a href="{_bot_chat_url(bot_username)}">{translate(lang, label_key)}</a>'
-
-
-def _bot_chat_url(bot_username: str) -> str:
-    return f"https://t.me/{bot_username.lstrip('@')}"
+    url = f"https://t.me/{bot_username.lstrip('@')}"
+    return f'{message}\n\n<a href="{url}">{translate(lang, "cta.stats")}</a>'

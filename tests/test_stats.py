@@ -87,6 +87,54 @@ def test_user_language_preference_is_persistent(repository: ActivityRepository) 
     assert loaded.preferred_language == "en"
 
 
+def test_language_code_fills_null_preferred_language_on_new_user(repository: ActivityRepository) -> None:
+    service = ActivityService(repository)
+    now = datetime(2026, 5, 13, 12, 0, 0)
+
+    user = service.ensure_user(1, "alice", language_code="ru", now=now)
+    assert user.preferred_language == "ru"
+
+
+def test_language_code_fills_null_preferred_language_on_existing_user(repository: ActivityRepository) -> None:
+    service = ActivityService(repository)
+    now = datetime(2026, 5, 13, 12, 0, 0)
+
+    # First interaction — no language_code known yet
+    service.ensure_user(1, "alice", now=now)
+
+    # Second interaction — Telegram language_code now available
+    updated = service.ensure_user(1, "alice", language_code="ru", now=now)
+    assert updated.preferred_language == "ru"
+
+
+def test_language_code_does_not_override_explicit_language(repository: ActivityRepository) -> None:
+    service = ActivityService(repository)
+    now = datetime(2026, 5, 13, 12, 0, 0)
+
+    service.ensure_user(1, "alice", now=now)
+    service.set_user_language(1, "alice", "en", now=now)
+
+    # Telegram says "ru" but user already chose "en" explicitly
+    user = service.ensure_user(1, "alice", language_code="ru", now=now)
+    assert user.preferred_language == "en"
+
+
+def test_non_russian_language_code_resolves_to_english(repository: ActivityRepository) -> None:
+    service = ActivityService(repository)
+    now = datetime(2026, 5, 13, 12, 0, 0)
+
+    user = service.ensure_user(1, "alice", language_code="de", now=now)
+    assert user.preferred_language == "en"
+
+
+def test_none_language_code_leaves_preferred_language_null(repository: ActivityRepository) -> None:
+    service = ActivityService(repository)
+    now = datetime(2026, 5, 13, 12, 0, 0)
+
+    user = service.ensure_user(1, "alice", language_code=None, now=now)
+    assert user.preferred_language is None
+
+
 def test_clear_all_stats_removes_entries_but_keeps_user(repository: ActivityRepository) -> None:
     service = ActivityService(repository)
     now = datetime(2026, 5, 13, 12, 0, 0)
