@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+.deps/
+.bootstrap/
+venv/
+env/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# SQLite and runtime state
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+data/
+storage/
+
+# Logs
+*.log
+logs/
+
+# Docker/local tooling
+.docker/
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

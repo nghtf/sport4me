@@ -1,0 +1,11 @@
+services:
+  bot:
+    image: activity-bot
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - bot-data:/app/data
+
+volumes:
+  bot-data:
