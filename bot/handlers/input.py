@@ -15,7 +15,7 @@ from bot.validators import InputValidationError, parse_signed_amount
 router = Router()
 
 
-@router.message(F.text, F.chat.type == "private")
+@router.message(F.text, F.chat.type == "private", F.via_bot.is_(None))
 async def handle_text(message: Message, service: ActivityService) -> None:
     telegram_user = message.from_user
     if telegram_user is None:
