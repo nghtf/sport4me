@@ -12,6 +12,7 @@ from bot.ui import (
     cancel_message,
     clean_cancelled_message,
     clean_success_message,
+    detailed_message,
     enter_number_first_message,
     limit_error_message,
     unknown_activity_message,
@@ -82,6 +83,25 @@ async def join_group(callback: CallbackQuery, service: ActivityService) -> None:
     lang = user_language(stored_user, telegram_user)
     service.register_group_member(chat_id, None, telegram_user.id, telegram_user.username, first_name=telegram_user.first_name)
     await callback.answer(translate(lang, "message.join_group.success"), show_alert=False)
+
+
+@router.callback_query(F.data.startswith("details:"))
+async def details_period(callback: CallbackQuery, service: ActivityService) -> None:
+    telegram_user = callback.from_user
+    stored_user = service.ensure_user(
+        telegram_user.id, telegram_user.username,
+        first_name=telegram_user.first_name, language_code=telegram_user.language_code,
+    )
+    lang = user_language(stored_user, telegram_user)
+
+    key = str(callback.data).split(":", 1)[1]  # "week", "last_week", "month", "last_month"
+    last = key.startswith("last_")
+    period = key[5:] if last else key
+
+    daily_scores = service.get_detailed_stats(telegram_user.id, telegram_user.username, period, last)
+    await _delete_prompt_message_safely(callback)
+    await callback.message.answer(detailed_message(period, last, daily_scores, lang))
+    await _answer_callback_safely(callback)
 
 
 @router.callback_query(F.data.startswith("activity:"))

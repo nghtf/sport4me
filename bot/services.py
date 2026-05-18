@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from bot.constants import ACTIVITIES, ACTIVITY_KEYS, MAX_TOTAL, MIN_TOTAL
 from bot.models import LeaderboardEntry, PeriodStats, User
@@ -118,6 +118,28 @@ class ActivityService:
             week=self.repository.get_totals_by_activity(user.id, week_start, week_end),
             month=self.repository.get_totals_by_activity(user.id, month_start, month_end),
         )
+
+    def get_detailed_stats(
+        self,
+        telegram_user_id: int,
+        username: str | None,
+        period: str,
+        last: bool = False,
+        now: datetime | None = None,
+    ) -> list[tuple[date, int]]:
+        current_time = now or datetime.now()
+        user = self.ensure_user(telegram_user_id, username, now=current_time)
+
+        if period == "month":
+            start, end = last_month_range(current_time) if last else month_range(current_time)
+        else:
+            start, end = last_week_range(current_time) if last else week_range(current_time)
+
+        if not last:
+            _, tomorrow = today_range(current_time)
+            end = min(end, tomorrow)
+
+        return self.repository.get_daily_scores(user.id, start, end)
 
     def register_group_member(
         self,

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import date
+
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.types import User as TelegramUser
 
@@ -196,6 +198,39 @@ def group_leaderboard_message(
         medal = _MEDALS[entry.rank - 1] if entry.rank <= 3 else f"{entry.rank}."
         lines.append(f"{medal} {_display_name(entry.user, lang)}: {format_number(entry.score)}")
     return _append_cta("\n".join(lines), lang, bot_username)
+
+
+def details_keyboard(lang: Language) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text=translate(lang, "details.button.week"), callback_data="details:week"),
+                InlineKeyboardButton(text=translate(lang, "details.button.last_week"), callback_data="details:last_week"),
+            ],
+            [
+                InlineKeyboardButton(text=translate(lang, "details.button.month"), callback_data="details:month"),
+                InlineKeyboardButton(text=translate(lang, "details.button.last_month"), callback_data="details:last_month"),
+            ],
+        ]
+    )
+
+
+def details_prompt(lang: Language) -> str:
+    return translate(lang, "details.prompt")
+
+
+def detailed_message(
+    period: str,
+    last: bool,
+    daily_scores: list[tuple[date, int]],
+    lang: Language,
+) -> str:
+    key = f"detailed.last_{period}" if last else f"detailed.{period}"
+    title = translate(lang, key)
+    lines = [f"<b>{title}</b>", "-----"]
+    for day, score in daily_scores:
+        lines.append(f"{day.strftime('%d-%m-%Y')} = 🏅{format_number(score)}")
+    return "\n".join(lines)
 
 
 def cannot_identify_user_message(lang: Language) -> str:

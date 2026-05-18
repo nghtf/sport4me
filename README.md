@@ -29,6 +29,11 @@ Users send a signed or unsigned integer such as `20`, `+20`, or `-20`, then choo
 - `/day` - show today only
 - `/week` - show current week only
 - `/month` - show current month only
+- `/details` - pick a period via buttons and get daily scores
+- `/detailed` - daily scores for the current week
+- `/detailed last week` - daily scores for the previous week
+- `/detailed month` - daily scores for the current month
+- `/detailed last month` - daily scores for the previous month
 - `/en` - switch language to English
 - `/ru` - switch language to Russian
 - `/clean` - clear all stats after confirmation
@@ -39,12 +44,12 @@ Add the bot to a group. Any user who issues a group command is automatically reg
 
 | Command | Description |
 |---|---|
-| `/top_day` | Top 10 for today |
-| `/top_week` | Top 10 for the current week (Mon–Sun) |
-| `/top_month` | Top 10 for the current calendar month |
-| `/top_last_day` | Top 10 for yesterday |
-| `/top_last_week` | Top 10 for the previous week |
-| `/top_last_month` | Top 10 for the previous calendar month |
+| `/top` | Top 10 for today |
+| `/top week` | Top 10 for the current week (Mon–Sun) |
+| `/top month` | Top 10 for the current calendar month |
+| `/top last day` | Top 10 for yesterday |
+| `/top last week` | Top 10 for the previous week |
+| `/top last month` | Top 10 for the previous calendar month |
 
 ### How group rankings work
 
@@ -68,14 +73,14 @@ Period headers show this score directly, for example `Today (🏅100)`.
 
 ```text
 # Alice checks today's group ranking
-Alice: /top_day
+Alice: /top
 Bot:   Top 10 · Today
        -----
        🥇 @alice: 120
        🥈 @bob: 80
 
 # Bob checks last week's ranking
-Bob:   /top_last_week
+Bob:   /top last week
 Bot:   Top 10 · Last Week
        -----
        🥇 @carol: 350

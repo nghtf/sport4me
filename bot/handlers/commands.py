@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from aiogram import Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
 from bot.services import ActivityService
@@ -12,6 +12,9 @@ from bot.ui import (
     clean_confirm_message,
     clean_confirm_keyboard,
     cta_keyboard,
+    detailed_message,
+    details_keyboard,
+    details_prompt,
     help_text,
     language_switched_to_english_message,
     language_switched_to_russian_message,
@@ -111,6 +114,43 @@ async def week(message: Message, service: ActivityService) -> None:
 @router.message(Command("month"))
 async def month(message: Message, service: ActivityService) -> None:
     await _send_single_period_stats(message, service, "month")
+
+
+@router.message(Command("details"))
+async def details(message: Message, service: ActivityService) -> None:
+    telegram_user = message.from_user
+    logger.info("Handling /details for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
+    if telegram_user is None:
+        await message.answer(cannot_identify_user_message("en"))
+        return
+    stored_user = service.ensure_user(
+        telegram_user.id, telegram_user.username,
+        first_name=telegram_user.first_name, language_code=telegram_user.language_code,
+    )
+    lang = user_language(stored_user, telegram_user)
+    await message.answer(details_prompt(lang), reply_markup=details_keyboard(lang))
+
+
+@router.message(Command("detailed"))
+async def detailed(message: Message, command: CommandObject, service: ActivityService) -> None:
+    telegram_user = message.from_user
+    logger.info("Handling /detailed for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
+    if telegram_user is None:
+        await message.answer(cannot_identify_user_message("en"))
+        return
+
+    stored_user = service.ensure_user(
+        telegram_user.id, telegram_user.username,
+        first_name=telegram_user.first_name, language_code=telegram_user.language_code,
+    )
+    lang = user_language(stored_user, telegram_user)
+
+    args = (command.args or "").lower().split()
+    last = "last" in args
+    period = "month" if "month" in args else "week"
+
+    daily_scores = service.get_detailed_stats(telegram_user.id, telegram_user.username, period, last)
+    await message.answer(detailed_message(period, last, daily_scores, lang))
 
 
 async def _send_single_period_stats(message: Message, service: ActivityService, period: str) -> None:

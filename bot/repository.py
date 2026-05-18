@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -320,6 +320,43 @@ class ActivityRepository:
             LeaderboardEntry(rank=rank, user=user, score=score)
             for rank, (user, score) in enumerate(ranked[:limit], start=1)
         ]
+
+    def get_daily_scores(
+        self,
+        user_id: int,
+        start: datetime,
+        end: datetime,
+    ) -> list[tuple[date, int]]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT DATE(created_at) AS day, activity_type,
+                       COALESCE(SUM(amount), 0) AS total
+                FROM activity_entries
+                WHERE user_id = ?
+                  AND created_at >= ?
+                  AND created_at < ?
+                GROUP BY day, activity_type
+                """,
+                (user_id, _to_db_datetime(start), _to_db_datetime(end)),
+            ).fetchall()
+
+        daily: dict[date, dict[str, int]] = {}
+        for row in rows:
+            day = date.fromisoformat(str(row["day"]))
+            if day not in daily:
+                daily[day] = {key: 0 for key in ACTIVITY_KEYS}
+            if row["activity_type"] is not None:
+                daily[day][str(row["activity_type"])] = int(row["total"])
+
+        result: list[tuple[date, int]] = []
+        current = start.date()
+        end_date = end.date()
+        while current < end_date:
+            totals = daily.get(current, {key: 0 for key in ACTIVITY_KEYS})
+            result.append((current, calculate_score(totals)))
+            current += timedelta(days=1)
+        return result
 
     def _connect(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.database_path)

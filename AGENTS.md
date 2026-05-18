@@ -91,13 +91,14 @@ This project is expected to be published as open source.
 - `/help` shows short usage help
 - `/stat` shows stats for today, current week, and current month
 - `/day`, `/week`, and `/month` show a single period
+- `/detailed [last] [week|month]` shows a day-by-day score breakdown; defaults to the current week; `last` selects the previous period; current periods are capped at today
 - `/en` and `/ru` persist the user language choice
 - `/clean` asks for confirmation and clears the user’s stats on confirm
 - inline queries return shareable stats snippets for the current user; each result includes a "Get your result" CTA button
 - After `+N` or `-N`, the bot stores a pending value and shows activity buttons plus cancel
 - After activity selection, the bot validates limits, stores the entry, and shows the current daily total
 - Cancel clears pending state without writing a record
-- In groups: `/top_day`, `/top_week`, `/top_month` show top-10 for the current period; `/top_last_day`, `/top_last_week`, `/top_last_month` show top-10 for the previous period
+- In groups: `/top [day|week|month]` shows top-10 for the current period (default: day); `/top last [day|week|month]` shows top-10 for the previous period
 - Calling any `/top_*` command auto-registers the user as a member of that group
 - Group leaderboards include a "Get your result" inline button so users can share their own stats immediately
 - Group members are stored in `group_members`; activity data is shared with the private-chat tracking (same `activity_entries` table)

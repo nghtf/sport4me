@@ -4,7 +4,7 @@ import logging
 from datetime import datetime
 
 from aiogram import F, Router
-from aiogram.filters import Command
+from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
 from bot.services import (
@@ -33,11 +33,25 @@ _PERIOD_RANGES = {
 }
 
 
-async def _handle_top_command(message: Message, service: ActivityService, period: str) -> None:
+def _parse_top_period(args: str) -> str:
+    parts = args.lower().split()
+    last = "last" in parts
+    if "month" in parts:
+        base = "month"
+    elif "week" in parts:
+        base = "week"
+    else:
+        base = "day"
+    return f"last_{base}" if last else base
+
+
+@router.message(Command("top"))
+async def top(message: Message, command: CommandObject, service: ActivityService) -> None:
+    period = _parse_top_period(command.args or "")
     telegram_user = message.from_user
     chat = message.chat
     logger.info(
-        "Handling /top_%s for user_id=%s in chat_id=%s",
+        "Handling /top %s for user_id=%s in chat_id=%s",
         period,
         telegram_user.id if telegram_user else "<unknown>",
         chat.id,
@@ -66,33 +80,3 @@ async def _handle_top_command(message: Message, service: ActivityService, period
         group_leaderboard_message(period, entries, lang, bot_username=bot_username),
         reply_markup=participate_keyboard(lang, chat.id),
     )
-
-
-@router.message(Command("top_day"))
-async def top_day(message: Message, service: ActivityService) -> None:
-    await _handle_top_command(message, service, "day")
-
-
-@router.message(Command("top_week"))
-async def top_week(message: Message, service: ActivityService) -> None:
-    await _handle_top_command(message, service, "week")
-
-
-@router.message(Command("top_month"))
-async def top_month(message: Message, service: ActivityService) -> None:
-    await _handle_top_command(message, service, "month")
-
-
-@router.message(Command("top_last_day"))
-async def top_last_day(message: Message, service: ActivityService) -> None:
-    await _handle_top_command(message, service, "last_day")
-
-
-@router.message(Command("top_last_week"))
-async def top_last_week(message: Message, service: ActivityService) -> None:
-    await _handle_top_command(message, service, "last_week")
-
-
-@router.message(Command("top_last_month"))
-async def top_last_month(message: Message, service: ActivityService) -> None:
-    await _handle_top_command(message, service, "last_month")
