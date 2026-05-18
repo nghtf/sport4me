@@ -150,7 +150,8 @@ async def detailed(message: Message, command: CommandObject, service: ActivitySe
     period = "month" if "month" in args else "week"
 
     daily_scores = service.get_detailed_stats(telegram_user.id, telegram_user.username, period, last)
-    await message.answer(detailed_message(period, last, daily_scores, lang))
+    bot_username = (await message.bot.me()).username
+    await message.answer(detailed_message(period, last, daily_scores, lang, bot_username=bot_username), reply_markup=cta_keyboard(lang))
 
 
 async def _send_single_period_stats(message: Message, service: ActivityService, period: str) -> None:

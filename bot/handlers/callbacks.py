@@ -12,6 +12,7 @@ from bot.ui import (
     cancel_message,
     clean_cancelled_message,
     clean_success_message,
+    cta_keyboard,
     detailed_message,
     enter_number_first_message,
     limit_error_message,
@@ -99,8 +100,9 @@ async def details_period(callback: CallbackQuery, service: ActivityService) -> N
     period = key[5:] if last else key
 
     daily_scores = service.get_detailed_stats(telegram_user.id, telegram_user.username, period, last)
+    bot_username = (await callback.bot.me()).username
     await _delete_prompt_message_safely(callback)
-    await callback.message.answer(detailed_message(period, last, daily_scores, lang))
+    await callback.message.answer(detailed_message(period, last, daily_scores, lang, bot_username=bot_username), reply_markup=cta_keyboard(lang))
     await _answer_callback_safely(callback)
 
 

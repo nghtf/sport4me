@@ -224,13 +224,14 @@ def detailed_message(
     last: bool,
     daily_scores: list[tuple[date, int]],
     lang: Language,
+    bot_username: str | None = None,
 ) -> str:
     key = f"detailed.last_{period}" if last else f"detailed.{period}"
     title = translate(lang, key)
     lines = [f"<b>{title}</b>", "-----"]
     for day, score in daily_scores:
         lines.append(f"{day.strftime('%d-%m-%Y')} = 🏅{format_number(score)}")
-    return "\n".join(lines)
+    return _append_cta("\n".join(lines), lang, bot_username)
 
 
 def cannot_identify_user_message(lang: Language) -> str:
