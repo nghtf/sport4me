@@ -113,11 +113,24 @@ class ActivityService:
         week_start, week_end = week_range(current_time)
         month_start, month_end = month_range(current_time)
 
+        yesterday_start, yesterday_end = last_day_range(current_time)
         return PeriodStats(
+            yesterday=self.repository.get_totals_by_activity(user.id, yesterday_start, yesterday_end),
             today=self.repository.get_totals_by_activity(user.id, today_start, today_end),
             week=self.repository.get_totals_by_activity(user.id, week_start, week_end),
             month=self.repository.get_totals_by_activity(user.id, month_start, month_end),
         )
+
+    def get_yesterday_totals(
+        self,
+        telegram_user_id: int,
+        username: str | None,
+        now: datetime | None = None,
+    ) -> dict[str, int]:
+        current_time = now or datetime.now()
+        user = self.ensure_user(telegram_user_id, username, now=current_time)
+        start, end = last_day_range(current_time)
+        return self.repository.get_totals_by_activity(user.id, start, end)
 
     def get_detailed_stats(
         self,

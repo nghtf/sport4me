@@ -12,7 +12,7 @@ from bot.scoring import calculate_score
 from bot.services import ApplyResult, LimitError
 from bot.validators import InputErrorCode
 
-PERIOD_TO_FIELD = {"day": "today", "week": "week", "month": "month"}
+PERIOD_TO_FIELD = {"yesterday": "yesterday", "day": "today", "week": "week", "month": "month"}
 
 
 def user_language(user: User | None, telegram_user: TelegramUser | None) -> Language:

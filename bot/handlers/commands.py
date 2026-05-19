@@ -101,9 +101,26 @@ async def clean(message: Message, service: ActivityService) -> None:
     await message.answer(clean_confirm_message(lang), reply_markup=clean_confirm_keyboard(lang))
 
 
-@router.message(Command("day"))
-async def day(message: Message, service: ActivityService) -> None:
+@router.message(Command("today"))
+async def today(message: Message, service: ActivityService) -> None:
     await _send_single_period_stats(message, service, "day")
+
+
+@router.message(Command("yesterday"))
+async def yesterday(message: Message, service: ActivityService) -> None:
+    telegram_user = message.from_user
+    logger.info("Handling /yesterday for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
+    if telegram_user is None:
+        await message.answer(cannot_identify_user_message("en"))
+        return
+    stored_user = service.ensure_user(
+        telegram_user.id, telegram_user.username,
+        first_name=telegram_user.first_name, language_code=telegram_user.language_code,
+    )
+    lang = user_language(stored_user, telegram_user)
+    totals = service.get_yesterday_totals(telegram_user.id, telegram_user.username)
+    bot_username = (await message.bot.me()).username
+    await message.answer(period_message("yesterday", totals, lang, bot_username=bot_username), reply_markup=cta_keyboard(lang))
 
 
 @router.message(Command("week"))

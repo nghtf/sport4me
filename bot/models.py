@@ -43,6 +43,7 @@ class User:
 
 @dataclass(frozen=True)
 class PeriodStats:
+    yesterday: dict[str, int]
     today: dict[str, int]
     week: dict[str, int]
     month: dict[str, int]

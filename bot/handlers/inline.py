@@ -14,10 +14,12 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 _INLINE_PERIOD_ALIASES = {
-    "": ("all", "day", "week", "month"),
+    "": ("all", "yesterday", "day", "week", "month"),
     "all": ("all",),
     "stat": ("all",),
     "stats": ("all",),
+    "yesterday": ("yesterday",),
+    "вчера": ("yesterday",),
     "today": ("day",),
     "day": ("day",),
     "week": ("week",),

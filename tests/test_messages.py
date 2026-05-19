@@ -10,6 +10,7 @@ from datetime import datetime
 def test_stats_message_is_compact_and_aligned() -> None:
     message = stats_message(
         PeriodStats(
+            yesterday={"steps": 0, "squats": 0, "pushups": 0, "plank": 0, "abs": 0},
             today={"steps": 3, "squats": 0, "pushups": 0, "plank": 0, "abs": 0},
             week={"steps": 1200, "squats": 40, "pushups": 0, "plank": 5, "abs": 0},
             month={"steps": 12345, "squats": 40, "pushups": 10, "plank": 5, "abs": 12},
@@ -33,6 +34,7 @@ def test_stats_message_is_compact_and_aligned() -> None:
 def test_stats_message_uses_english_for_non_russian_users() -> None:
     message = stats_message(
         PeriodStats(
+            yesterday={"steps": 0, "squats": 0, "pushups": 0, "plank": 0, "abs": 0},
             today={"steps": 3, "squats": 0, "pushups": 0, "plank": 0, "abs": 0},
             week={"steps": 1200, "squats": 40, "pushups": 0, "plank": 5, "abs": 0},
             month={"steps": 12345, "squats": 40, "pushups": 10, "plank": 5, "abs": 12},
@@ -115,7 +117,7 @@ def test_cta_keyboard_label() -> None:
 
 
 def test_inline_query_aliases_resolve_expected_periods() -> None:
-    assert _resolve_inline_periods("") == ("all", "day", "week", "month")
+    assert _resolve_inline_periods("") == ("all", "yesterday", "day", "week", "month")
     assert _resolve_inline_periods("stat") == ("all",)
     assert _resolve_inline_periods("today") == ("day",)
     assert _resolve_inline_periods("неделя") == ("week",)
