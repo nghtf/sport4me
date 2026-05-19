@@ -29,7 +29,7 @@ from bot.ui import (
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.message.filter(F.chat.type == "private")
+router.message.filter(F.chat.type.in_({"private"}))
 
 
 def _lang(service: ActivityService, telegram_user: TelegramUser) -> Language:
