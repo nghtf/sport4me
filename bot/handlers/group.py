@@ -7,8 +7,8 @@ from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
-from bot.services import (
-    ActivityService,
+from bot.services import ActivityService
+from bot.time_ranges import (
     last_day_range,
     last_month_range,
     last_week_range,

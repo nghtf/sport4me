@@ -5,14 +5,14 @@ from datetime import datetime, timedelta
 import pytest
 
 from bot.repository import ActivityRepository
-from bot.services import (
-    ActivityService,
+from bot.services import ActivityService
+from bot.time_ranges import (
     last_day_range,
     last_month_range,
     last_week_range,
+    month_range,
     today_range,
     week_range,
-    month_range,
 )
 
 

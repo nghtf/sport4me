@@ -30,8 +30,8 @@ Users send a signed or unsigned integer such as `20`, `+20`, or `-20`, then choo
 - `/yesterday` - show yesterday only
 - `/week` - show current week only
 - `/month` - show current month only
-- `/details` - pick a period via buttons and get daily scores
-- `/score` - daily scores for the current week
+- `/score` - pick a period via buttons and get daily scores
+- `/score week` - daily scores for the current week
 - `/score last week` - daily scores for the previous week
 - `/score month` - daily scores for the current month
 - `/score last month` - daily scores for the previous month

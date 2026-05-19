@@ -6,6 +6,14 @@ from datetime import date, datetime, timedelta
 from bot.constants import ACTIVITIES, ACTIVITY_KEYS, MAX_TOTAL, MIN_TOTAL
 from bot.models import LeaderboardEntry, PeriodStats, User
 from bot.repository import ActivityRepository
+from bot.time_ranges import (
+    last_day_range,
+    last_month_range,
+    last_week_range,
+    month_range,
+    today_range,
+    week_range,
+)
 
 
 class PendingNotFoundError(RuntimeError):
@@ -121,17 +129,6 @@ class ActivityService:
             month=self.repository.get_totals_by_activity(user.id, month_start, month_end),
         )
 
-    def get_yesterday_totals(
-        self,
-        telegram_user_id: int,
-        username: str | None,
-        now: datetime | None = None,
-    ) -> dict[str, int]:
-        current_time = now or datetime.now()
-        user = self.ensure_user(telegram_user_id, username, now=current_time)
-        start, end = last_day_range(current_time)
-        return self.repository.get_totals_by_activity(user.id, start, end)
-
     def get_detailed_stats(
         self,
         telegram_user_id: int,
@@ -191,42 +188,3 @@ def validate_daily_total(current_total: int, amount: int) -> int:
     if not MIN_TOTAL <= new_total <= MAX_TOTAL:
         raise LimitError(current_total=current_total, attempted_total=new_total)
     return new_total
-
-
-def today_range(now: datetime) -> tuple[datetime, datetime]:
-    start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    return start, start + timedelta(days=1)
-
-
-def week_range(now: datetime) -> tuple[datetime, datetime]:
-    today_start, _ = today_range(now)
-    start = today_start - timedelta(days=today_start.weekday())
-    return start, start + timedelta(days=7)
-
-
-def month_range(now: datetime) -> tuple[datetime, datetime]:
-    start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    if start.month == 12:
-        end = start.replace(year=start.year + 1, month=1)
-    else:
-        end = start.replace(month=start.month + 1)
-    return start, end
-
-
-def last_day_range(now: datetime) -> tuple[datetime, datetime]:
-    today_start, _ = today_range(now)
-    return today_start - timedelta(days=1), today_start
-
-
-def last_week_range(now: datetime) -> tuple[datetime, datetime]:
-    current_week_start, _ = week_range(now)
-    return current_week_start - timedelta(days=7), current_week_start
-
-
-def last_month_range(now: datetime) -> tuple[datetime, datetime]:
-    current_month_start, _ = month_range(now)
-    if current_month_start.month == 1:
-        prev = current_month_start.replace(year=current_month_start.year - 1, month=12)
-    else:
-        prev = current_month_start.replace(month=current_month_start.month - 1)
-    return prev, current_month_start
