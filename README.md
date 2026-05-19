@@ -26,14 +26,15 @@ Users send a signed or unsigned integer such as `20`, `+20`, or `-20`, then choo
 - `/start` - show instructions
 - `/help` - show help
 - `/stat` - show all periods
-- `/day` - show today only
+- `/today` - show today only
+- `/yesterday` - show yesterday only
 - `/week` - show current week only
 - `/month` - show current month only
 - `/details` - pick a period via buttons and get daily scores
-- `/detailed` - daily scores for the current week
-- `/detailed last week` - daily scores for the previous week
-- `/detailed month` - daily scores for the current month
-- `/detailed last month` - daily scores for the previous month
+- `/score` - daily scores for the current week
+- `/score last week` - daily scores for the previous week
+- `/score month` - daily scores for the current month
+- `/score last month` - daily scores for the previous month
 - `/en` - switch language to English
 - `/ru` - switch language to Russian
 - `/clean` - clear all stats after confirmation
@@ -97,7 +98,8 @@ Example:
 
 ```text
 @your_bot_username
-@your_bot_username day
+@your_bot_username yesterday
+@your_bot_username today
 @your_bot_username week
 @your_bot_username month
 @your_bot_username stat
@@ -105,15 +107,17 @@ Example:
 
 Supported keywords:
 
+- `yesterday` / `вчера`
 - `day` / `today` / `сегодня`
 - `week` / `неделя`
 - `month` / `месяц`
 - `stat` / `stats` / `стат` / `статистика`
 
-With an empty inline query, the bot returns four choices:
+With an empty inline query, the bot returns five choices:
 
 - all stats
-- day
+- yesterday
+- today
 - week
 - month
 
@@ -254,6 +258,10 @@ Available targets:
 - `make run`           — run bot locally
 - `make check-proxy`   — check configured proxy and CONNECT support
 - `make check-telegram`— check Telegram API access with current env/proxy
+- `make usage`         — show bot usage stats (users, groups, activity entries) from the running container
+- `make version`       — show current version from git tags
+- `make release`       — tag a new release: `make release VERSION=1.2.3`
+- `make backup`        — copy the database from the running container to `./backups/`
 - `make docker-build`  — build Docker image
 - `make docker-run`    — run Docker container using `.env`
 - `make docker-stop`   — stop and remove Docker container

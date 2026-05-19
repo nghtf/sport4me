@@ -10,10 +10,11 @@ IMAGE ?= activity-bot
 CONTAINER ?= activity-bot
 ENV_FILE ?= .env
 DB_PATH ?= data/activity_bot.db
+BACKUP_DIR ?= backups
 
 .DEFAULT_GOAL := help
 
-.PHONY: help venv install test run check-env check-app check-proxy check-telegram usage version release docker-build docker-run docker-stop docker-logs compose-up compose-down compose-logs update clean flush
+.PHONY: help venv install test run check-env check-app check-proxy check-telegram usage version release backup docker-build docker-run docker-stop docker-logs compose-up compose-down compose-logs update clean flush
 
 help:
 	@printf '%s\n' 'Available targets:'
@@ -34,6 +35,7 @@ help:
 	@printf '%s\n' '  make usage         Show bot usage stats (users, groups, activity entries)'
 	@printf '%s\n' '  make version       Show current version from git tags'
 	@printf '%s\n' '  make release       Tag a new release: make release VERSION=1.2.3'
+	@printf '%s\n' '  make backup        Copy database from running container to $(BACKUP_DIR)/'
 	@printf '%s\n' '  make clean         Remove local caches'
 	@printf '%s\n' '  make flush         Delete the local SQLite database (DB_PATH=$(DB_PATH))'
 
@@ -95,12 +97,8 @@ release:
 	git tag -a "v$(VERSION)" -m "Release v$(VERSION)"
 	@printf '%s\n' "Done. Push with: git push origin v$(VERSION)"
 
-usage: check-env check-app
-	@if [ -x "$(VENV)/bin/python" ]; then \
-		PYTHONPATH=. $(VENV)/bin/python -m bot.usage; \
-	else \
-		PYTHONPATH="$(DEPS_DIR):." $(PYTHON) -m bot.usage; \
-	fi
+usage:
+	docker compose exec bot python -m bot.usage
 
 check-proxy: check-env check-app
 	@if [ -x "$(VENV)/bin/python" ]; then \
@@ -162,6 +160,13 @@ compose-logs:
 update:
 	git pull https://github.com/nghtf/sport4me
 	docker compose up --build -d
+
+backup:
+	@mkdir -p $(BACKUP_DIR)
+	@STAMP=$$(date +%Y%m%d_%H%M%S); \
+	DEST="$(BACKUP_DIR)/activity_bot_$$STAMP.db"; \
+	docker compose cp bot:/app/data/activity_bot.db "$$DEST" && \
+	printf '%s\n' "Backup saved to $$DEST"
 
 clean:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache htmlcov $(DEPS_DIR)

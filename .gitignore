@@ -20,6 +20,9 @@ env/
 .env.*
 !.env.example
 
+# Backups
+backups/
+
 # SQLite and runtime state
 *.db
 *.db-*

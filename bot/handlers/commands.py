@@ -148,10 +148,10 @@ async def details(message: Message, service: ActivityService) -> None:
     await message.answer(details_prompt(lang), reply_markup=details_keyboard(lang))
 
 
-@router.message(Command("detailed"))
-async def detailed(message: Message, command: CommandObject, service: ActivityService) -> None:
+@router.message(Command("score"))
+async def score(message: Message, command: CommandObject, service: ActivityService) -> None:
     telegram_user = message.from_user
-    logger.info("Handling /detailed for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
+    logger.info("Handling /score for user_id=%s", telegram_user.id if telegram_user else "<unknown>")
     if telegram_user is None:
         await message.answer(cannot_identify_user_message("en"))
         return
